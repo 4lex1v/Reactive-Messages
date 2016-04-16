@@ -12,3 +12,8 @@ shellPrompt in ThisBuild := { Project.extract(_).currentProject.id + " >> "}
  * to connect different kinds of sources to the ReactiveMessages Publisher
  */
 lazy val ReactiveSources = project.in(file("./ReactiveSources"))
+
+/**
+ * Examples and stuff...
+ */
+lazy val Scratchpad = project.in(file("./Scratchpad")).dependsOn(ReactiveSources)
