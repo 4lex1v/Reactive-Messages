@@ -5,7 +5,7 @@ import akka.event.LoggingAdapter
 import org.reactivestreams.{Publisher, Subscriber}
 import reactivemessages.internal.Protocol
 import reactivemessages.sources.ReactiveMessagesSource
-import reactivemessages.utils.ReactiveStreamsComplianceKit
+import reactivemessages.utils.RSComplianceKit
 
 final class ReactiveMessagesPublisher[Message] private[reactivemessages] (
   source: ReactiveMessagesSource[Message],
@@ -31,7 +31,7 @@ final class ReactiveMessagesPublisher[Message] private[reactivemessages] (
    *        the caller MUST raise this error condition in a fashion that is adequate for the runtime environment.
    */
   override def subscribe(subscriber: Subscriber[_ >: Message]): Unit = {
-    ReactiveStreamsComplianceKit.subscriberNotNull(subscriber)
+    RSComplianceKit.subscriberNotNull(subscriber)
 
     publisherActor ! Protocol.NewSubscriptionRequest(subscriber)
   }
