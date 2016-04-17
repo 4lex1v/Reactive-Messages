@@ -6,7 +6,7 @@ import reactivemessages.sources.ActorListener
 import reactivemessages.internal.Protocol
 import reactivemessages.internal.Protocol.AttachSource
 import reactivemessages.sources.ReactiveMessagesSource
-import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, EmptySubscription}
+import reactivemessages.subscription.{EmptySubscription, ReactiveMessagesSubscriptionActor}
 
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   import ReactiveMessagesPublisherActor._
@@ -26,6 +26,9 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   override def receive: Receive = awaitingForSource()
 
   def awaitingForSource(): Receive = {
+    /**
+     * NOTE :: Source replacement ?? RS Spec ??
+     */
     case AttachSource(source) if publisherState.isAwaiting =>
       log.debug(s"Attaching to source [$source]")
       publisherState = State.SourceAttached(source)
@@ -76,12 +79,21 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
           subscriber.onError(ex)
       }
 
+    /**
+     * NOTE :: Buffer message if no active subscriptions ?
+     */
     case msg @ Protocol.IncomingMessage(message) =>
       context.children.foreach { _ ! msg }
 
+    /**
+     * NOTE :: Fault-tolerance strategies ?
+     */
     case ex @ Protocol.SourceException(error) =>
       context.children.foreach { _ ! ex }
 
+    /**
+     * NOTE :: Alternative / multiple sources ?
+     */
     case Protocol.SourceDepleted =>
       publisherState match {
         case State.SourceDepleted(_) =>
@@ -97,8 +109,6 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
       // TODO :: RS spec ??
       context.children.foreach { _ ! Protocol.CancelSubscription }
       context.stop(self)
-
-
   }
 
 }
