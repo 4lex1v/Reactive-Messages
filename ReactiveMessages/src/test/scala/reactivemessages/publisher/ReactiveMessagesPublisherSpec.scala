@@ -18,7 +18,7 @@ class ReactiveMessagesPublisherSpec extends WordSpecLike with Matchers {
       intercept[Throwable] { publisher.subscribe(null) }
     }
 
-    "send attach source request to the publisher actor" in {
+    "attach source to the publisher actor on creation" in {
       val actor = TestProbe()
       val publisher = new ReactiveMessagesPublisher(NothingSource, actor.ref, system.log)
       actor.expectMsg(Protocol.AttachSource(NothingSource))
