@@ -11,9 +11,10 @@ final class ReactiveMessagesPublisher[Message] private[reactivemessages] (
   source: ReactiveMessagesSource[Message],
   publisherActor: ActorRef,
   log: LoggingAdapter
-) extends Publisher[Message] {
+) extends Publisher[Message] { self =>
 
   log.info(s"Starting ReactiveMessagesPublisher using source [$source]")
+  publisherActor ! Protocol.AttachSource(source)
 
   /**
    * 1.09 - [[Publisher.subscribe()]] MUST call onSubscribe on the provided Subscriber prior to any other signals to that
