@@ -1,6 +1,6 @@
 package reactivemessages.subscription
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{Actor, ActorLogging, Props}
 import org.reactivestreams.Subscriber
 import reactivemessages.internal.Protocol
 
@@ -64,6 +64,10 @@ final class ReactiveMessagesSubscriptionActor(s: Subscriber[Any]) extends Actor 
 }
 
 object ReactiveMessagesSubscriptionActor {
+
+  def props(subscriber: Subscriber[Any]): Props = {
+    Props(new ReactiveMessagesSubscriptionActor(subscriber))
+  }
 
   private object internal {
     sealed trait State {

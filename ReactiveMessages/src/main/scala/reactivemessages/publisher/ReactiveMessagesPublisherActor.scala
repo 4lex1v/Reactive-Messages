@@ -47,9 +47,8 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
          * NOTE :: Does [[Lifecycle.AwaitingSource]] makes sense here?
          */
         case Lifecycle.AwaitingSource | Lifecycle.SourceAttached(_) =>
-          // TODO :: Handle props properly
-          context.actorOf(Props(
-            new ReactiveMessagesSubscriptionActor(subscriber.asInstanceOf[Subscriber[Any]])
+          context.actorOf(ReactiveMessagesSubscriptionActor.props(
+            subscriber.asInstanceOf[Subscriber[Any]]
           ))
 
         /**
