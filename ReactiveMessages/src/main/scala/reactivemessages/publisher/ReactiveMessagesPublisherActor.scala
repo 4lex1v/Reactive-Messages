@@ -21,6 +21,8 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
 
   val listener = new ActorListener(self)
 
+  def illegalState(expected: State) = PublisherIllegalState(s"PublisherActor state $publisherState, expected $expected")
+
   override def receive: Receive = awaitingForSource()
 
   def awaitingForSource(): Receive = {
@@ -37,10 +39,8 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
        */
       source.registerListener(listener)
 
-    case _ =>
-      publisherState = State.Crashed {
-        PublisherIllegalState(s"PublisherActor state $publisherState, expected AwaitingSource")
-      }
+    case badState =>
+      publisherState = State.Crashed(illegalState(State.AwaitingSource))
 
   }
 
