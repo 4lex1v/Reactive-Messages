@@ -12,4 +12,9 @@ private[reactivemessages] object Protocol {
   final case class IncomingMessage[Message](message: Message)
 
   final case class SourceException(error: Throwable)
+
+  case object CancelSubscription
+
+  final case class RequestMore(n: Long)
+
 }
