@@ -25,4 +25,4 @@ lazy val ReactiveTwitterSource = project.in(file("./Sources/Twitter")).dependsOn
 /**
  * Examples and stuff...
  */
-lazy val Scratchpad = project.in(file("./Scratchpad")).dependsOn(ReactiveSources, ReactiveTwitterSource)
+lazy val Scratchpad = project.in(file("./Scratchpad")).dependsOn(ReactiveSources, ReactiveTwitterSource, ReactiveTestKit)
