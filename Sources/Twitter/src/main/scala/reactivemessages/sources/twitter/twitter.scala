@@ -11,14 +11,6 @@ package object twitter {
    */
   implicit def streamToReactiveSource(client: TwitterStream): ReactiveMessagesSource[Status] = new ReactiveTweets(client)
 
-  implicit val fromStatusConverter: MessageConverter[Status] = {
-    new MessageConverter[Status] {
-      override def apply(source: Status): Message[Status] = {
-        new Message[Status] {}
-      }
-    }
-  }
-
   /**
    * Quick Twitter client for playing around in a Scratchpad
    */
