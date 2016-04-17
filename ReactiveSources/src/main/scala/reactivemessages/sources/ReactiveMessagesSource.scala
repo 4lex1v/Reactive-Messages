@@ -4,7 +4,7 @@ package reactivemessages.sources
  * Produces potentially infinite number of messages. Requires an
  * attached [[ReactiveMessagesListener]] to send messages to consumers.
  */
-trait ReactiveMessagesSource[MessageType] {
+trait ReactiveMessagesSource[+MessageType] {
 
   /**
    * In order to start consume messages from this source we need to register
@@ -12,5 +12,5 @@ trait ReactiveMessagesSource[MessageType] {
    *
    * @param listener - Listener interested in received messages from this source
    */
-  def registerListener(listener: ReactiveMessagesListener[MessageType]): Unit
+  def registerListener[MT >: MessageType](listener: ReactiveMessagesListener[MT]): Unit
 }
