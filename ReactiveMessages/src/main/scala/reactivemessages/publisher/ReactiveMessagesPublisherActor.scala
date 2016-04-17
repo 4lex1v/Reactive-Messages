@@ -9,7 +9,7 @@ import reactivemessages.sources.ReactiveMessagesSource
 import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, EmptySubscription}
 
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
-  import ReactiveMessagesPublisherActor._, internal._
+  import ReactiveMessagesPublisherActor._
 
   private[this] var publisherState: State = State.AwaitingSource
 
@@ -101,31 +101,29 @@ object ReactiveMessagesPublisherActor {
 
   final case class PublisherIllegalState(message: String) extends Throwable(message)
 
-  private object internal {
-    sealed trait State {
-      private def check[S <: State] = this.isInstanceOf[S]
 
-      def isAwaiting: Boolean = check[State.AwaitingSource.type]
-      def isAttached: Boolean = check[State.SourceAttached]
-      def isDepleted: Boolean = check[State.SourceDepleted]
+  sealed trait State {
+    private def check[S <: State] = this.isInstanceOf[S]
 
-    }
+    def isAwaiting: Boolean = this == State.AwaitingSource
+    def isAttached: Boolean = this.isInstanceOf[State.SourceAttached[_]]
+    def isDepleted: Boolean = this.isInstanceOf[State.SourceDepleted[_]]
+  }
 
-    object State {
+  object State {
 
-      case object AwaitingSource extends State
+    case object AwaitingSource extends State
 
-      final case class SourceAttached[Message](
-        source: ReactiveMessagesSource[Message]
-      ) extends State
+    final case class SourceAttached[Message](
+      source: ReactiveMessagesSource[Message]
+    ) extends State
 
-      final case class SourceDepleted[Message](
-        depletedSource: Option[ReactiveMessagesSource[Message]]
-      ) extends State
+    final case class SourceDepleted[Message](
+      depletedSource: Option[ReactiveMessagesSource[Message]]
+    ) extends State
 
-      final case class Crashed(reason: Throwable) extends State
+    final case class Crashed(reason: Throwable) extends State
 
-    }
   }
 
 }
