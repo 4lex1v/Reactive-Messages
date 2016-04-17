@@ -18,7 +18,7 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   override def receive: Receive = awaitingForSource()
 
   def awaitingForSource(): Receive = {
-    case AttachSource(source) =>
+    case AttachSource(source) if publisherState.isAwaiting =>
       log.debug(s"Attaching to source [$source]")
       publisherState = State.SourceAttached(source)
 
@@ -90,7 +90,15 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
 object ReactiveMessagesPublisherActor {
 
   private object internal {
-    sealed trait State
+    sealed trait State {
+      private def check[S <: State] = this.isInstanceOf[S]
+
+      def isAwaiting: Boolean = check[State.AwaitingSource.type]
+      def isAttached: Boolean = check[State.SourceAttached]
+      def isDepleted: Boolean = check[State.SourceDepleted]
+
+    }
+
     object State {
 
       case object AwaitingSource extends State
