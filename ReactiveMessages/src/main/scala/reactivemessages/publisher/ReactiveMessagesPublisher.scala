@@ -1,6 +1,6 @@
 package reactivemessages.publisher
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.event.LoggingAdapter
 import org.reactivestreams.{Publisher, Subscriber}
 import reactivemessages.internal.Protocol

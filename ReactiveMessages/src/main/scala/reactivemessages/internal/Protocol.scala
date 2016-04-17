@@ -17,4 +17,6 @@ private[reactivemessages] object Protocol {
 
   final case class RequestMore(n: Long)
 
+  case object SourceDepleted
+
 }

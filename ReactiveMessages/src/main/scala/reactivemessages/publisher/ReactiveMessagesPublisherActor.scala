@@ -1,10 +1,12 @@
 package reactivemessages.publisher
 
-import akka.actor.{Actor, ActorLogging}
+import akka.actor.{Actor, ActorLogging, Props}
+import org.reactivestreams.Subscriber
 import reactivemessages.sources.ActorListener
 import reactivemessages.internal.Protocol
 import reactivemessages.internal.Protocol.AttachSource
 import reactivemessages.sources.ReactiveMessagesSource
+import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, SourceDepletedSubscription}
 
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   import ReactiveMessagesPublisherActor.internal._
@@ -39,6 +41,48 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
      * [[org.reactivestreams.Subscription]] instance.
      */
     case Protocol.NewSubscriptionRequest(subscriber) =>
+      internalState match {
+
+        /**
+         * NOTE :: Does [[Lifecycle.AwaitingSource]] makes sense here?
+         */
+        case Lifecycle.AwaitingSource | Lifecycle.SourceAttached(_) =>
+          // TODO :: Handle props properly
+          context.actorOf(Props(
+            new ReactiveMessagesSubscriptionActor(subscriber.asInstanceOf[Subscriber[Any]])
+          ))
+
+        /**
+         * I believe according to the RS spec we still need to call "onSubscribe"
+         * right before calling "onComplete". No subscription actor in this case
+         */
+        case Lifecycle.SourceDepleted(_) =>
+          subscriber.onSubscribe(SourceDepletedSubscription)
+          subscriber.onComplete()
+      }
+
+    case msg @ Protocol.IncomingMessage(message) =>
+      context.children.foreach { _ ! msg }
+
+    case ex @ Protocol.SourceException(error) =>
+      context.children.foreach { _ ! ex }
+
+    case Protocol.SourceDepleted =>
+      internalState match {
+        case Lifecycle.SourceDepleted(_) =>
+          // NOTE :: Is this a valid / possible case ??
+
+        case Lifecycle.AwaitingSource =>
+          internalState = Lifecycle.SourceDepleted(None)
+
+        case Lifecycle.SourceAttached(source) =>
+          internalState = Lifecycle.SourceDepleted(Some(source))
+      }
+
+      // TODO :: RS spec ??
+      context.children.foreach { _ ! Protocol.CancelSubscription }
+      context.stop(self)
+
 
   }
 
@@ -49,10 +93,17 @@ object ReactiveMessagesPublisherActor {
   private object internal {
     sealed trait Lifecycle
     object Lifecycle {
+
       case object AwaitingSource extends Lifecycle
-      final case class SourceAttached[+Message](
+
+      final case class SourceAttached[Message](
         source: ReactiveMessagesSource[Message]
       ) extends Lifecycle
+
+      final case class SourceDepleted[Message](
+        depletedSource: Option[ReactiveMessagesSource[Message]]
+      ) extends Lifecycle
+
     }
   }
 
