@@ -14,6 +14,11 @@ shellPrompt in ThisBuild := { Project.extract(_).currentProject.id + " >> "}
 lazy val ReactiveSources = project.in(file("./ReactiveSources"))
 
 /**
+ * Project with various testing stuff
+ */
+lazy val ReactiveTestKit = project.in(file("./ReactiveTestKit")).dependsOn(ReactiveSources)
+
+/**
  * Examples and stuff...
  */
 lazy val Scratchpad = project.in(file("./Scratchpad")).dependsOn(ReactiveSources)
