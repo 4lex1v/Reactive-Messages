@@ -37,3 +37,9 @@ final class ReactiveMessagesPublisher[Message] private[reactivemessages] (
   }
 
 }
+
+object ReactiveMessagesPublisher {
+  def apply[Message](source: ReactiveMessagesSource[Message])(implicit sys: ActorSystem): ReactiveMessagesPublisher[Message] = {
+    new ReactiveMessagesPublisher[Message](source, sys.actorOf(Props(new ReactiveMessagesPublisherActor)), sys.log)
+  }
+}
