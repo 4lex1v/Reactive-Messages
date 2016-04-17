@@ -11,7 +11,7 @@ import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, SourceD
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   import ReactiveMessagesPublisherActor.internal._
 
-  private[this] var internalState: Lifecycle = Lifecycle.AwaitingSource
+  private[this] var publisherState: State = State.AwaitingSource
 
   val listener = new ActorListener(self)
 
@@ -20,7 +20,7 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   def awaitingForSource(): Receive = {
     case AttachSource(source) =>
       log.debug(s"Attaching to source [$source]")
-      internalState = Lifecycle.SourceAttached(source)
+      publisherState = State.SourceAttached(source)
 
       context.become(processMessages())
 
@@ -41,12 +41,12 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
      * [[org.reactivestreams.Subscription]] instance.
      */
     case Protocol.NewSubscriptionRequest(subscriber) =>
-      internalState match {
+      publisherState match {
 
         /**
-         * NOTE :: Does [[Lifecycle.AwaitingSource]] makes sense here?
+         * NOTE :: Does [[State.AwaitingSource]] makes sense here?
          */
-        case Lifecycle.AwaitingSource | Lifecycle.SourceAttached(_) =>
+        case State.AwaitingSource | State.SourceAttached(_) =>
           context.actorOf(ReactiveMessagesSubscriptionActor.props(
             subscriber.asInstanceOf[Subscriber[Any]]
           ))
@@ -55,7 +55,7 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
          * I believe according to the RS spec we still need to call "onSubscribe"
          * right before calling "onComplete". No subscription actor in this case
          */
-        case Lifecycle.SourceDepleted(_) =>
+        case State.SourceDepleted(_) =>
           subscriber.onSubscribe(SourceDepletedSubscription)
           subscriber.onComplete()
       }
@@ -67,15 +67,15 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
       context.children.foreach { _ ! ex }
 
     case Protocol.SourceDepleted =>
-      internalState match {
-        case Lifecycle.SourceDepleted(_) =>
+      publisherState match {
+        case State.SourceDepleted(_) =>
           // NOTE :: Is this a valid / possible case ??
 
-        case Lifecycle.AwaitingSource =>
-          internalState = Lifecycle.SourceDepleted(None)
+        case State.AwaitingSource =>
+          publisherState = State.SourceDepleted(None)
 
-        case Lifecycle.SourceAttached(source) =>
-          internalState = Lifecycle.SourceDepleted(Some(source))
+        case State.SourceAttached(source) =>
+          publisherState = State.SourceDepleted(Some(source))
       }
 
       // TODO :: RS spec ??
@@ -90,18 +90,18 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
 object ReactiveMessagesPublisherActor {
 
   private object internal {
-    sealed trait Lifecycle
-    object Lifecycle {
+    sealed trait State
+    object State {
 
-      case object AwaitingSource extends Lifecycle
+      case object AwaitingSource extends State
 
       final case class SourceAttached[Message](
         source: ReactiveMessagesSource[Message]
-      ) extends Lifecycle
+      ) extends State
 
       final case class SourceDepleted[Message](
         depletedSource: Option[ReactiveMessagesSource[Message]]
-      ) extends Lifecycle
+      ) extends State
 
     }
   }
