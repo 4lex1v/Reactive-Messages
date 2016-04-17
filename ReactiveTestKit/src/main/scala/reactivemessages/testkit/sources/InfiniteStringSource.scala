@@ -2,7 +2,7 @@ package reactivemessages.testkit.sources
 
 import reactivemessages.sources.{ReactiveMessagesListener, ReactiveMessagesSource}
 
-final class InfiniteStringSource extends ReactiveMessagesSource[String] {
+object InfiniteStringSource extends ReactiveMessagesSource[String] {
 
   private[this] var listener: ReactiveMessagesListener[String] = _
   private[this] var _stop: Boolean = false
@@ -13,7 +13,10 @@ final class InfiniteStringSource extends ReactiveMessagesSource[String] {
     new Thread(new StringEmitter).start()
   }
 
-  def stop() = { _stop = true }
+  def stop() = {
+    _stop = true
+    listener.onComplete()
+  }
 
   private class StringEmitter extends Runnable {
     override def run(): Unit = {

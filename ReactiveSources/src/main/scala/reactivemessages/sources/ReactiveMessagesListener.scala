@@ -17,4 +17,6 @@ trait ReactiveMessagesListener[-MessageType] {
    */
   def onError(error: Throwable): Unit
 
+  def onComplete(): Unit
+
 }

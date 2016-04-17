@@ -12,4 +12,8 @@ final class ActorListener[-Message](actor: ActorRef) extends ReactiveMessagesLis
   override def onError(error: Throwable): Unit = {
     actor ! Protocol.SourceException(error)
   }
+
+  override def onComplete(): Unit = {
+    actor ! Protocol.SourceDepleted
+  }
 }
