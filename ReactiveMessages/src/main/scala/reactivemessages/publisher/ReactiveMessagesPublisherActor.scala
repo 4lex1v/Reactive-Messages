@@ -6,7 +6,7 @@ import reactivemessages.sources.ActorListener
 import reactivemessages.internal.Protocol
 import reactivemessages.internal.Protocol.AttachSource
 import reactivemessages.sources.ReactiveMessagesSource
-import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, SourceDepletedSubscription}
+import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, EmptySubscription}
 
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   import ReactiveMessagesPublisherActor.internal._
@@ -56,7 +56,7 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
          * right before calling "onComplete". No subscription actor in this case
          */
         case State.SourceDepleted(_) =>
-          subscriber.onSubscribe(SourceDepletedSubscription)
+          subscriber.onSubscribe(EmptySubscription)
           subscriber.onComplete()
       }
 
