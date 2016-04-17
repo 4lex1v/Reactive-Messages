@@ -11,7 +11,13 @@ import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, EmptySu
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
   import ReactiveMessagesPublisherActor._
 
+  /**
+   * Publisher State management.
+   * Verbose for testing purposes, any better way to do this?
+   */
   private[this] var publisherState: State = State.AwaitingSource
+  def transitToState(s: State) = { publisherState = s }
+  def currentState: State = publisherState
 
   val listener = new ActorListener(self)
 
