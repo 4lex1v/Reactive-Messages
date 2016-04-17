@@ -13,6 +13,17 @@ shellPrompt in ThisBuild := { Project.extract(_).currentProject.id + " >> "}
 lazy val ReactiveSources = project.in(file("./ReactiveSources"))
 
 /**
+ * ReactiveStreams based wrapper
+ */
+lazy val ReactiveMessages = project.in(file("./ReactiveMessages")).dependsOn(ReactiveSources)
+
+/**
+ * Compliance testkit with ReactiveStream spec
+ */
+lazy val ReactiveMessagesTCK = project.in(file("./ReactiveMessagesTCK")).dependsOn(ReactiveMessages)
+
+
+/**
  * Project with various testing stuff
  */
 lazy val ReactiveTestKit = project.in(file("./ReactiveTestKit")).dependsOn(ReactiveSources)
@@ -25,4 +36,5 @@ lazy val ReactiveTwitterSource = project.in(file("./Sources/Twitter")).dependsOn
 /**
  * Examples and stuff...
  */
-lazy val Scratchpad = project.in(file("./Scratchpad")).dependsOn(ReactiveSources, ReactiveTwitterSource, ReactiveTestKit)
+lazy val Scratchpad = project.in(file("./Scratchpad"))
+  .dependsOn(ReactiveSources, ReactiveTwitterSource, ReactiveTestKit, ReactiveMessages)
