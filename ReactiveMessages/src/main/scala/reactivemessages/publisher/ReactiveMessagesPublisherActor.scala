@@ -9,7 +9,7 @@ import reactivemessages.sources.ReactiveMessagesSource
 import reactivemessages.subscription.{ReactiveMessagesSubscriptionActor, EmptySubscription}
 
 final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
-  import ReactiveMessagesPublisherActor.internal._
+  import ReactiveMessagesPublisherActor._, internal._
 
   private[this] var publisherState: State = State.AwaitingSource
 
@@ -30,6 +30,12 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
        * method.
        */
       source.registerListener(listener)
+
+    case _ =>
+      publisherState = State.Crashed {
+        PublisherIllegalState(s"PublisherActor state $publisherState, expected AwaitingSource")
+      }
+
   }
 
   def processMessages(): Receive = {
@@ -58,6 +64,10 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
         case State.SourceDepleted(_) =>
           subscriber.onSubscribe(EmptySubscription)
           subscriber.onComplete()
+
+        case State.Crashed(ex) =>
+          subscriber.onSubscribe(EmptySubscription)
+          subscriber.onError(ex)
       }
 
     case msg @ Protocol.IncomingMessage(message) =>
@@ -89,6 +99,8 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
 
 object ReactiveMessagesPublisherActor {
 
+  final case class PublisherIllegalState(message: String) extends Throwable(message)
+
   private object internal {
     sealed trait State {
       private def check[S <: State] = this.isInstanceOf[S]
@@ -110,6 +122,8 @@ object ReactiveMessagesPublisherActor {
       final case class SourceDepleted[Message](
         depletedSource: Option[ReactiveMessagesSource[Message]]
       ) extends State
+
+      final case class Crashed(reason: Throwable) extends State
 
     }
   }
