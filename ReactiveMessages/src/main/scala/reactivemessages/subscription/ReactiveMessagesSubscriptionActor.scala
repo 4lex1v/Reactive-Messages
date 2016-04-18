@@ -78,6 +78,10 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
           }
       }
 
+    case m @ Protocol.RequestMore(nrOfElements) if nrOfElements < 1 =>
+      val error = new IllegalArgumentException("Cannot request less then one element. Spec 3.9")
+      onActive(_.onError(error))
+
     /** Send as much as we can */
     case m @ Protocol.RequestMore(nrOfElements) =>
       requested += nrOfElements
@@ -121,7 +125,7 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
 
   def onActive(handle: Subscriber[Any] => Unit): Unit = {
     subscriptionState match {
-      case State.Active(subscriber) if requested > 0 => handle(subscriber)
+      case State.Active(subscriber) => handle(subscriber)
       case _ =>
     }
   }
