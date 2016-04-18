@@ -117,6 +117,7 @@ object ReactiveMessagesPublisherActor {
 
   final case class PublisherIllegalState(message: String) extends Throwable(message)
 
+  def props(): Props = { Props(new ReactiveMessagesPublisherActor) }
 
   sealed trait State {
     private def check[S <: State] = this.isInstanceOf[S]
