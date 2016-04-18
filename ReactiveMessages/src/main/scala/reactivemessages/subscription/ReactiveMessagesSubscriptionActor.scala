@@ -5,7 +5,7 @@ import org.reactivestreams.Subscriber
 import reactivemessages.internal.Protocol
 
 final class ReactiveMessagesSubscriptionActor(s: Subscriber[Any]) extends Actor with ActorLogging {
-  import ReactiveMessagesSubscriptionActor.internal._
+  import ReactiveMessagesSubscriptionActor._
 
   private val publisher = context.parent
 
@@ -69,17 +69,15 @@ object ReactiveMessagesSubscriptionActor {
     Props(new ReactiveMessagesSubscriptionActor(subscriber))
   }
 
-  private object internal {
-    sealed trait State {
-      def isActive: Boolean = { this == State.Active }
-    }
-    object State {
+  sealed trait State {
+    def isActive: Boolean = { this == State.Active }
+  }
+  object State {
 
-      case object Active extends State
-      case object Cancelled extends State
-      final case class Suspended(reason: Throwable) extends State
+    case object Active extends State
+    case object Cancelled extends State
+    final case class Suspended(reason: Throwable) extends State
 
-    }
   }
 
 }
