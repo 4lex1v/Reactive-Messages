@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import org.reactivestreams.Subscriber
 import reactivemessages.internal.Protocol
 
-final class ReactiveMessagesSubscriptionActor(s: Subscriber[Any]) extends Actor with ActorLogging {
+final class ReactiveMessagesSubscriptionActor (s: Subscriber[Any]) extends Actor with ActorLogging {
   import ReactiveMessagesSubscriptionActor._
 
   private val publisher = context.parent
@@ -38,24 +38,25 @@ final class ReactiveMessagesSubscriptionActor(s: Subscriber[Any]) extends Actor 
     case Protocol.IncomingMessage(status) if subscriptionState.isActive =>
       s.onNext(status)
 
-//      /**
-//       * This is an interesting case how can we implementation back-pressure according to the
-//       * reactive streams specification.
-//       */
-//      if (requested > 0) {
-//        s.onNext(status)
-//        requested -= 1
-//      }
+    //      /**
+    //       * This is an interesting case how can we implementation back-pressure according to the
+    //       * reactive streams specification.
+    //       */
+    //      if (requested > 0) {
+    //        s.onNext(status)
+    //        requested -= 1
+    //      }
 
-//      context.become(processing(statuses.enqueue(status)))
+    //      context.become(processing(statuses.enqueue(status)))
 
-      case Protocol.CancelSubscription =>
-        s.onComplete()
-        context.stop(self)
-//        publisher ! Protocol.SubscriptionCanceled(self, s)
+    case Protocol.CancelSubscription if subscriptionState.isActive =>
+      subscriptionState = State.Cancelled
+      s.onComplete()
+      context.stop(self)
+    //        publisher ! Protocol.SubscriptionCanceled(self, s)
 
     /** Send as much as we can */
-    case m @ Protocol.RequestMore(nrOfElements) =>
+    case m @ Protocol.RequestMore(nrOfElements) if subscriptionState.isActive =>
       println(s"Subscriber RequestMore :: $nrOfElements")
       requested += nrOfElements
 
