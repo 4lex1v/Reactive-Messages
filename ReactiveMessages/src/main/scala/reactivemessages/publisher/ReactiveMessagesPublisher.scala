@@ -36,6 +36,7 @@ final class ReactiveMessagesPublisher[Message] private[reactivemessages] (
     publisherActor ! Protocol.NewSubscriptionRequest(subscriber)
   }
 
+  override def toString: String = s"ReactiveMessagePublisher[$source]"
 }
 
 object ReactiveMessagesPublisher {
