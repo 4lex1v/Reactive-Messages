@@ -3,10 +3,13 @@ package reactivemessages.publisher
 import akka.actor.ActorSystem
 import org.scalatest.{Matchers, WordSpecLike}
 import akka.testkit._
+import org.reactivestreams.{Subscriber, Subscription}
 import reactivemessages.internal.Protocol
 import reactivemessages.publisher.ReactiveMessagesPublisherActor.State
 import reactivemessages.sources.{ReactiveMessagesListener, ReactiveMessagesSource}
+import reactivemessages.subscription.EmptySubscription
 import reactivemessages.testkit.sources.NothingSource
+import reactivemessages.testkit.subscriber.{DummySubscriber, TestSubscriber}
 
 class ReactiveMessagesPublisherActorUnitSpec extends WordSpecLike with Matchers {
   import ReactiveMessagesPublisherActorUnitSpec._
@@ -45,14 +48,56 @@ class ReactiveMessagesPublisherActorUnitSpec extends WordSpecLike with Matchers 
       }
 
     }
-    
+
+    "receives a subscription request" should {
+
+      "complete subscription if source depleted" in withPActor { case (actor, impl) =>
+        impl.transitToState(State.SourceDepleted(Some(NothingSource)))
+
+        val subscriber: TestSubscriber[Any] = new TestSubscriber[Any]()
+        actor.receive(Protocol.NewSubscriptionRequest(subscriber))
+
+        subscriber.expectSubscription(EmptySubscription)
+        subscriber.expectComplete()
+      }
+
+      "notify error state to subscriber" in withPActor { case (actor, impl) =>
+        impl.transitToState(State.Crashed(new Throwable))
+
+        val subscriber: TestSubscriber[Any] = new TestSubscriber[Any]()
+        actor.receive(Protocol.NewSubscriptionRequest(subscriber))
+
+        subscriber.expectSubscription(EmptySubscription)
+        subscriber.expectAnyError()
+      }
+
+      "create subscription" in withPActor { case (actor, impl) =>
+        impl.transitToState(State.SourceAttached(NothingSource))
+
+        val subscriber: TestSubscriber[Any] = new TestSubscriber[Any]()
+        actor.receive(Protocol.NewSubscriptionRequest(subscriber))
+
+        subscriber.expectAnySubscription()
+        impl.context.children shouldNot be ('empty)
+      }
+
+    }
+
   }
 
 }
 
 object ReactiveMessagesPublisherActorUnitSpec {
+
   def withActor(f: (TestActorRef[ReactiveMessagesPublisherActor], ReactiveMessagesPublisherActor) => Unit)(implicit sys: ActorSystem): Unit = {
     val actor = TestActorRef[ReactiveMessagesPublisherActor]
     f(actor, actor.underlyingActor)
+  }
+
+  def withPActor(f: (TestActorRef[ReactiveMessagesPublisherActor], ReactiveMessagesPublisherActor) => Unit)(implicit sys: ActorSystem): Unit = {
+    val actor = TestActorRef[ReactiveMessagesPublisherActor]
+    val impl = actor.underlyingActor
+    impl.context.become(impl.processMessages())
+    f(actor, impl)
   }
 }
