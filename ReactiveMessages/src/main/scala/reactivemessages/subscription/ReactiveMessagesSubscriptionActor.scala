@@ -27,7 +27,7 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
   override def receive: Receive = awaitingSubscription()
 
   def awaitingSubscription(): Receive = {
-    case Protocol.Subscribe(subscriber) if inState(State.Idle) =>
+    case Protocol.Subscribe(subscriber) =>
       subscriptionState match {
         case State.Idle =>
           try subscriber.onSubscribe(new ReactiveMessagesSubscription(self))
@@ -43,6 +43,10 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
               context.become(processingMessages())
             }
           }
+
+        case State.Active(existing) =>
+          subscriber.onSubscribe(EmptySubscription)
+          subscriber.onError(new IllegalStateException("Already subscribed"))
 
         case State.Failed(ex) =>
           subscriber.onSubscribe(EmptySubscription)
