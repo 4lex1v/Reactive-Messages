@@ -25,4 +25,6 @@ private[reactivemessages] object Protocol {
   case object CancelSubscription extends DeadLetterSuppression
   final case class RequestMore(n: Long) extends DeadLetterSuppression
 
+  final case class Subscribe[M](subscriber: Subscriber[M])
+
 }

@@ -62,9 +62,8 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
          * NOTE :: Does [[State.AwaitingSource]] makes sense here?
          */
         case State.AwaitingSource | State.SourceAttached(_) =>
-          context.actorOf(ReactiveMessagesSubscriptionActor.props(
-            subscriber.asInstanceOf[Subscriber[Any]]
-          ))
+          val subscription = context.actorOf(ReactiveMessagesSubscriptionActor.props())
+          subscription ! Protocol.Subscribe(subscriber)
 
         /**
          * I believe according to the RS spec we still need to call "onSubscribe"
