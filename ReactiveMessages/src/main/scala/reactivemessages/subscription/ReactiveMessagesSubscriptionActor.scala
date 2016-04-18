@@ -28,7 +28,7 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
 
   def awaitingSubscription(): Receive = {
     case Protocol.Subscribe(subscriber) =>
-      subscriptionState match {
+      subscriptionState {
         case State.Idle =>
           try subscriber.onSubscribe(new ReactiveMessagesSubscription(self))
           catch {
@@ -68,7 +68,7 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
      *        failure (or reject the Subscriber) is by calling onError (after calling onSubscribe).
      */
     case Protocol.IncomingMessage(status) => //onActive(_.onNext(status))
-      subscriptionState match {
+      subscriptionState {
         case State.Active(subscriber) =>
           if (requested > 0) {
             subscriber.onNext(status)
@@ -89,14 +89,14 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
       /**
        * Check the queue
        */
-      subscriptionState match {
+      subscriptionState {
         case State.Active(subscriber) =>
           sendFromQueue(subscriber)
       }
 
 
     case Protocol.CancelSubscription =>
-      subscriptionState match {
+      subscriptionState {
         case State.Active(subscriber) =>
           subscriptionState = State.Cancelled
           subscriber.onComplete()
@@ -124,9 +124,8 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
   }
 
   def onActive(handle: Subscriber[Any] => Unit): Unit = {
-    subscriptionState match {
+    subscriptionState {
       case State.Active(subscriber) => handle(subscriber)
-      case _ =>
     }
   }
 
@@ -138,13 +137,19 @@ object ReactiveMessagesSubscriptionActor {
 
   def props(): Props = Props[ReactiveMessagesSubscriptionActor]
 
-  sealed trait State
+  sealed trait State {
+    def apply(pf: PartialFunction[State, Unit]) = {
+      if (pf.isDefinedAt(this)) {
+        pf.apply(this)
+      }
+    }
+  }
+
   object State {
     case object Idle extends State
     final case class Active[M](subscriber: Subscriber[M]) extends State
     case object Cancelled extends State
     final case class Failed(reason: Throwable) extends State
-
   }
 
 }
