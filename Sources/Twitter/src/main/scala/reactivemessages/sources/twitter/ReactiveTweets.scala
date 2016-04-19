@@ -7,8 +7,10 @@ final class ReactiveTweets(client: TwitterStream) extends ReactiveMessagesSource
 
   override def registerListener[StatusMessage >: Status](listener: ReactiveMessagesListener[StatusMessage]): Unit = {
     client.addListener(new ReactiveStatusListener(listener))
+    client.filter(new FilterQuery("scala", "akka", "reactive"))
   }
 
+  override def toString: String = "ReactiveTweets"
 }
 
 object ReactiveTweets {

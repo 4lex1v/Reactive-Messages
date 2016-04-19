@@ -1,6 +1,8 @@
 package reactivemessages
 
 import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Source
 import reactivemessages.testkit.sources.{FiniteStringSource, InfiniteStringSource}
 import reactivemessages.testkit.subscriber.SimpleSubscriber
 
@@ -14,7 +16,7 @@ object common {
    * Fast Consumer
    *   delay = 0
    */
-  val logAndTerminate = new SimpleSubscriber[String](
+  def logAndTerminate[A] = new SimpleSubscriber[A](
     delay = 200,
     request = 1,
     msg => println(s"Got Message: $msg"),
@@ -39,4 +41,18 @@ object InfiniteStringPrinter extends App {
 
   Producers.fromSource(InfiniteStringSource).subscribe(logAndTerminate)
 
+}
+
+object TwitterStream extends App {
+  import reactivemessages.sources.twitter._
+
+  implicit val mat = ActorMaterializer()
+
+  val publisher = Producers.fromSource(new ReactiveTweets(clientFromConfig()))
+
+//  // Custom
+//  publisher.subscribe(logAndTerminate)
+
+  // Akka Streams
+  Source.fromPublisher(publisher).runForeach(x => println(x.getText))
 }
