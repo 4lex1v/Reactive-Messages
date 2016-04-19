@@ -5,7 +5,6 @@ import org.scalatest.{Matchers, WordSpecLike}
 import akka.testkit._
 import org.reactivestreams.{Subscriber, Subscription}
 import reactivemessages.internal.Protocol
-import reactivemessages.publisher.ReactiveMessagesPublisherActor.State
 import reactivemessages.sources.{ReactiveMessagesListener, ReactiveMessagesSource}
 import reactivemessages.subscription.EmptySubscription
 import reactivemessages.testkit.sources.NothingSource
@@ -29,7 +28,7 @@ class ReactiveMessagesPublisherActorUnitSpec extends WordSpecLike with Matchers 
       "transit to Crashed state if the Actor is not in AwaitingSource state" in withActor { case (actor, impl) =>
         impl.transitToState(State.SourceAttached(NothingSource))
         actor.receive(Protocol.AttachSource(NothingSource))
-        impl.currentState shouldBe a[State.Crashed]
+        impl.currentState shouldBe a[State.Failed]
       }
 
       "attach source and register an interest with a listener" in withActor { case (actor, impl) =>
@@ -62,7 +61,7 @@ class ReactiveMessagesPublisherActorUnitSpec extends WordSpecLike with Matchers 
       }
 
       "notify error state to subscriber" in withPActor { case (actor, impl) =>
-        impl.transitToState(State.Crashed(new Throwable))
+        impl.transitToState(State.Failed(new Throwable))
 
         val subscriber: TestSubscriber[Any] = new TestSubscriber[Any]()
         actor.receive(Protocol.NewSubscriptionRequest(subscriber))
@@ -97,7 +96,6 @@ object ReactiveMessagesPublisherActorUnitSpec {
   def withPActor(f: (TestActorRef[ReactiveMessagesPublisherActor], ReactiveMessagesPublisherActor) => Unit)(implicit sys: ActorSystem): Unit = {
     val actor = TestActorRef[ReactiveMessagesPublisherActor]
     val impl = actor.underlyingActor
-    impl.context.become(impl.processMessages())
     f(actor, impl)
   }
 }

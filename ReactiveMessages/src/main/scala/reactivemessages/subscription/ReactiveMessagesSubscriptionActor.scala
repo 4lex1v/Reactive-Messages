@@ -1,6 +1,7 @@
 package reactivemessages.subscription
 
 import akka.actor.{Actor, ActorLogging, Props}
+import akka.event.LoggingReceive
 import org.reactivestreams.Subscriber
 import reactivemessages.internal.Protocol
 
@@ -24,9 +25,14 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
   private[this] var requested: Long = 0
   private[this] var queue: Queue[Any] = Queue.empty
 
-  override def receive: Receive = awaitingSubscription()
+  override def receive: Receive = LoggingReceive {
 
-  def awaitingSubscription(): Receive = {
+    /*******************************************************************************************************************
+     *                                                                                                                 *
+     *                                           [[Protocol.Subscribe]]                                                *
+     *                                                                                                                 *
+     ******************************************************************************************************************/
+
     case Protocol.Subscribe(subscriber) =>
       subscriptionState {
         case State.Idle =>
@@ -40,7 +46,6 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
           finally {
             if (inState(State.Idle)) {
               transitToState(State.Active(subscriber))
-              context.become(processingMessages())
             }
           }
 
@@ -56,9 +61,12 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
           subscriber.onSubscribe(EmptySubscription)
           subscriber.onComplete()
       }
-  }
 
-  def processingMessages(): Receive = {
+    /*******************************************************************************************************************
+     *                                                                                                                 *
+     *                                           [[Protocol.IncomingMessage]]                                          *
+     *                                                                                                                 *
+     ******************************************************************************************************************/
 
     /**
      * NOTE ---------------------------
@@ -67,16 +75,41 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
      *        a java.lang.NullPointerException to the caller, for all other situations the only legal way to signal
      *        failure (or reject the Subscriber) is by calling onError (after calling onSubscribe).
      */
-    case Protocol.IncomingMessage(status) => //onActive(_.onNext(status))
+    case Protocol.IncomingMessage(Some(status)) =>
       subscriptionState {
         case State.Active(subscriber) =>
           if (requested > 0) {
+            log.debug("Sending incoming message")
             subscriber.onNext(status)
             requested -= 1
           } else {
+            log.debug("Buffering incoming message")
             queue = queue.enqueue(status)
           }
       }
+
+    case Protocol.IncomingMessage(None) =>
+      if (queue.nonEmpty) {
+        import scala.concurrent.duration._
+        import context.dispatcher
+        context.system.scheduler.scheduleOnce(500.millis, self, Protocol.SourceDepleted)
+      } else {
+        subscriptionState {
+          case State.Active(subscriber) =>
+            if (queue.nonEmpty) {
+              sendFromQueue(subscriber)
+                .foreach(subscriber.onNext)
+            }
+            subscriber.onComplete()
+            subscriptionState = State.Idle
+        }
+      }
+
+    /*******************************************************************************************************************
+     *                                                                                                                 *
+     *                                           [[Protocol.RequestMore]]                                              *
+     *                                                                                                                 *
+     ******************************************************************************************************************/
 
     case m @ Protocol.RequestMore(nrOfElements) if nrOfElements < 1 =>
       val error = new IllegalArgumentException("Cannot request less then one element. Spec 3.9")
@@ -84,28 +117,60 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
 
     /** Send as much as we can */
     case m @ Protocol.RequestMore(nrOfElements) =>
+      log.debug(s"More elem requested $nrOfElements, requested - $requested")
       requested += nrOfElements
 
       /**
        * Check the queue
        */
-      subscriptionState {
-        case State.Active(subscriber) =>
-          sendFromQueue(subscriber)
+      if (queue.nonEmpty) {
+        log.debug(s"Non Empty Queue: $queue")
+        log.debug(s"State :: $subscriptionState")
+        subscriptionState {
+          case State.Active(subscriber) =>
+            log.debug("Active State during request")
+            sendFromQueue(subscriber)
+              .foreach(subscriber.onNext)
+        }
       }
 
+    /*******************************************************************************************************************
+     *                                                                                                                 *
+     *                                           [[Protocol.SourceDepleted]]                                           *
+     *                                                                                                                 *
+     ******************************************************************************************************************/
+
+    /**
+     * NOTE :: What if we have a Fast Producer, that emits a finite amount of data, and Slow Consumer.
+     *         In this case Fast Producer would emit all data
+     */
+    case Protocol.SourceDepleted =>
+      subscriptionState {
+        case State.Active(subscriber) =>
+          if (queue.nonEmpty) {
+            sendFromQueue(subscriber)
+              .foreach(subscriber.onNext)
+          }
+          subscriber.onComplete()
+          subscriptionState = State.Idle
+      }
+
+    /*******************************************************************************************************************
+     *                                                                                                                 *
+     *                                         [[Protocol.CancelSubscription]]                                         *
+     *                                                                                                                 *
+     ******************************************************************************************************************/
 
     case Protocol.CancelSubscription =>
       subscriptionState {
         case State.Active(subscriber) =>
           subscriptionState = State.Cancelled
-          subscriber.onComplete()
           context.stop(self)
       }
 
   }
 
-  def sendFromQueue(subscriber: Subscriber[Any]): Unit = {
+  def sendFromQueue(subscriber: Subscriber[Any]): List[Any] = {
     def inner(cnt: Long, loop: Queue[Any], acc: List[Any]): (Queue[Any], List[Any]) = {
       if (cnt > 0) {
         loop.dequeueOption match {
@@ -115,12 +180,16 @@ final class ReactiveMessagesSubscriptionActor extends Actor with ActorLogging {
       } else (loop, acc)
     }
 
-    inner(requested, queue, List.empty) match {
-      case (left, tosend) =>
-        queue = left
-        requested -= tosend.size
-        tosend.foreach(subscriber.onNext)
-    }
+    log.info(s"Original :: $queue")
+    val (left, toSend) = inner(requested, queue, List.empty)
+    log.info(s"Requested :: $requested")
+    log.info(s"Left :: $left")
+    log.info(s"Send :: $toSend")
+
+    queue = left
+    requested -= toSend.size
+    log.info(s"After :: $requested")
+    toSend
   }
 
   def onActive(handle: Subscriber[Any] => Unit): Unit = {

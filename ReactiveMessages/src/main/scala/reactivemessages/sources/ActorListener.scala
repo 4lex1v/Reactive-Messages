@@ -6,7 +6,7 @@ import reactivemessages.internal.Protocol
 final class ActorListener[-Message](actor: ActorRef) extends ReactiveMessagesListener[Message] {
 
   override def onMessage[MT <: Message](message: MT): Unit = {
-    actor ! Protocol.IncomingMessage(message)
+    actor ! Protocol.IncomingMessage(Some(message))
   }
 
   override def onError(error: Throwable): Unit = {
@@ -14,6 +14,6 @@ final class ActorListener[-Message](actor: ActorRef) extends ReactiveMessagesLis
   }
 
   override def onComplete(): Unit = {
-    actor ! Protocol.SourceDepleted
+    actor ! Protocol.IncomingMessage(None)
   }
 }

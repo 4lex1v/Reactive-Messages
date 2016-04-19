@@ -10,7 +10,7 @@ private[reactivemessages] object Protocol {
 
   final case class AttachSource[Message](source: ReactiveMessagesSource[Message])
 
-  final case class IncomingMessage[Message](message: Message)
+  final case class IncomingMessage[Message](message: Option[Message])
 
   final case class SourceException(error: Throwable)
 

@@ -1,6 +1,7 @@
 package reactivemessages.publisher
 
 import akka.actor.{Actor, ActorLogging, Props}
+import akka.event.LoggingReceive
 import org.reactivestreams.Subscriber
 import reactivemessages.sources.ActorListener
 import reactivemessages.internal.Protocol
@@ -23,31 +24,39 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
 
   def illegalState(expected: State) = PublisherIllegalState(s"PublisherActor state $publisherState, expected $expected")
 
-  override def receive: Receive = awaitingForSource()
+  override def receive: Receive = LoggingReceive {
 
-  def awaitingForSource(): Receive = {
     /**
      * NOTE :: Source replacement ?? RS Spec ??
      */
-    case AttachSource(source) if publisherState.isAwaiting =>
-      log.debug(s"Attaching to source [$source]")
-      publisherState = State.SourceAttached(source)
+    case AttachSource(source) =>
+      publisherState match {
 
-      context.become(processMessages())
+        case State.AwaitingSource =>
+          log.debug(s"Attaching to source [$source]")
+          publisherState = State.SourceAttached(source)
 
-      /**
-       * If we are registering a listener on an active source (that already emits data) then actor publisher
-       * starts getting data "as soon as". According to the spec we have to call "onSubscribe" before any other "onX"
-       * method.
-       */
-      source.registerListener(listener)
+          /**
+           * If we are registering a listener on an active source (that already emits data) then actor publisher
+           * starts getting data "as soon as". According to the spec we have to call "onSubscribe" before any other "onX"
+           * method.
+           *
+           * NOTE :: This Publisher won't get any data until we wont register an interest with the Listener
+           * TODO :: Ensure that one publisher registers only one listener
+           *
+           */
+          source.registerListener(listener)
 
-    case badState =>
-      publisherState = State.Crashed(illegalState(State.AwaitingSource))
+        case State.SourceAttached(_) =>
+          // TODO :: Source merging ??
 
-  }
+        case State.SourceDepleted(depleted) =>
+          // TODO :: Are these valid / possible cases ??
 
-  def processMessages(): Receive = {
+        case State.Failed(error) =>
+          // TODO :: Fault-tolerance strategy ??
+      }
+
     /**
      * When [[ReactiveMessagesPublisher]] receives a new subscription request from some
      * [[org.reactivestreams.Subscriber]], the publisher signals to the underlying
@@ -59,7 +68,7 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
       publisherState match {
 
         /**
-         * NOTE :: Does [[State.AwaitingSource]] makes sense here?
+         * NOTE :: In this case `onSubscribe` would be called from [[ReactiveMessagesSubscriptionActor]]
          */
         case State.AwaitingSource | State.SourceAttached(_) =>
           val subscription = context.actorOf(ReactiveMessagesSubscriptionActor.props())
@@ -73,7 +82,7 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
           subscriber.onSubscribe(EmptySubscription)
           subscriber.onComplete()
 
-        case State.Crashed(ex) =>
+        case State.Failed(ex) =>
           subscriber.onSubscribe(EmptySubscription)
           subscriber.onError(ex)
       }
@@ -82,32 +91,56 @@ final class ReactiveMessagesPublisherActor extends Actor with ActorLogging {
      * NOTE :: Buffer message if no active subscriptions ?
      */
     case msg @ Protocol.IncomingMessage(message) =>
-      context.children.foreach { _ ! msg }
+      message match {
+
+        case Some(_) => context.children.foreach { _ forward msg }
+
+        case None =>
+          log.debug("Publisher - SourceDepleted")
+          publisherState match {
+            case State.SourceDepleted(_) =>
+            // NOTE :: Is this a valid / possible case ??
+
+            case State.AwaitingSource =>
+              publisherState = State.SourceDepleted(None)
+
+            case State.SourceAttached(source) =>
+              publisherState = State.SourceDepleted(Some(source))
+              context.children.foreach { _ ! msg }
+
+            case State.Failed(ex) =>
+            //
+          }
+
+      }
 
     /**
      * NOTE :: Fault-tolerance strategies ?
+     * TODO :: Should the source exception be considered as [[State.Failed]] publisher state ?
      */
     case ex @ Protocol.SourceException(error) =>
-      context.children.foreach { _ ! ex }
+      context.children.foreach { _ forward ex }
 
     /**
      * NOTE :: Alternative / multiple sources ?
      */
-    case Protocol.SourceDepleted =>
-      publisherState match {
-        case State.SourceDepleted(_) =>
-          // NOTE :: Is this a valid / possible case ??
+//    case msg @ Protocol.SourceDepleted =>
+//      log.debug("Publisher - SourceDepleted")
+//      publisherState match {
+//        case State.SourceDepleted(_) =>
+//        // NOTE :: Is this a valid / possible case ??
+//
+//        case State.AwaitingSource =>
+//          publisherState = State.SourceDepleted(None)
+//
+//        case State.SourceAttached(source) =>
+//          publisherState = State.SourceDepleted(Some(source))
+//          context.children.foreach { _ ! msg }
+//
+//        case State.Failed(ex) =>
+//          //
+//      }
 
-        case State.AwaitingSource =>
-          publisherState = State.SourceDepleted(None)
-
-        case State.SourceAttached(source) =>
-          publisherState = State.SourceDepleted(Some(source))
-      }
-
-      // TODO :: RS spec ??
-      context.children.foreach { _ ! Protocol.CancelSubscription }
-      context.stop(self)
   }
 
 }
@@ -134,11 +167,14 @@ object ReactiveMessagesPublisherActor {
       source: ReactiveMessagesSource[Message]
     ) extends State
 
+    /**
+     * NOTE :: Is None a valid case here?
+     */
     final case class SourceDepleted[Message](
       depletedSource: Option[ReactiveMessagesSource[Message]]
     ) extends State
 
-    final case class Crashed(reason: Throwable) extends State
+    final case class Failed(reason: Throwable) extends State
 
   }
 
