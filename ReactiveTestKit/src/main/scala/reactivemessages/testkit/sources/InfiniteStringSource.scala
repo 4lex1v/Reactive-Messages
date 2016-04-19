@@ -24,6 +24,7 @@ object InfiniteStringSource extends ReactiveMessagesSource[String] {
         listener.onMessage("TEST STRING")
         Thread.sleep(100)
       }
+      listener.onComplete()
     }
   }
 
